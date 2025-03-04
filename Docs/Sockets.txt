@@ -1,0 +1,18 @@
+--> What is it?
+One to one endpoint of two-way communication link
+Bound to a port number
+
+Abstraction to which server and client can transmit data
+in a point to point
+
+TCP -> protocol model
+Connection oriented -> data transiction
+Reliable -> Ordered
+
+--> Server
+1. Create a socket
+2. Bind a socket -> network address and port
+3. Listen connection -> listening mode
+4. Accept connections
+5. Send and receive throungh connectios
+6. Close connection window

@@ -1,0 +1,7 @@
+--> For start
+
+-> initialize "server.py" in ubuntu VM
+
+-> initialize "cliet.pt" in Windows
+
+* Set up ports and address necessities

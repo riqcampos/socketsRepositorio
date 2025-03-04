@@ -1,0 +1,4 @@
+--> What is it?
+Set action on parallel to the computer process
+Threading library
+--> 
