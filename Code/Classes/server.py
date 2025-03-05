@@ -59,6 +59,7 @@ class Server:
                     conn.sendall(f"Memória: {memory_usage}%\n".encode('utf-8'))
 
             elif current_command == 'stop':
+                current_command = None   # Reset the command to stop sending data
                 continue
 
     def start(self):
