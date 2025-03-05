@@ -47,8 +47,8 @@ class Server:
         addr : tuple
             The address of the connected client.
         """
-        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {addr} CONECTADO!!")
-        conn.sendall(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: CONECTADO!!\n".encode('utf-8'))
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Client {addr} > Connection Established!\n")
+        conn.sendall(f" Server > Connection Established!\n".encode('utf-8'))
 
         thread_recv = threading.Thread(target=self.receive_commands, args=(conn,))
         thread_send = threading.Thread(target=self.send_data, args=(conn,))
@@ -86,8 +86,13 @@ class Server:
         """
         current_command = None
 
-        conn.sendall("WELCOME TO THE RESOURCE VISUALIZER SERVER!\n".encode('utf-8'))
-        conn.sendall("Type 'CPU' or 'memory' to monitor the respective resources.\n".encode('utf-8'))
+        conn.sendall("WELCOME TO THE RESOURCE VISUALIZER SERVER!\n\n".encode('utf-8'))
+        conn.sendall("""\n-------------LIST OF COMMANDS--------------
+|    cpu -> view cpu usage                |
+|    memory -> view memory usage          |
+|    /exit -> exit from client application|
+|    /shutdown -> turn off server         |
+-------------------------------------------""".encode('utf-8'))
         
         while True:
             with self.lock:
@@ -105,7 +110,7 @@ class Server:
                     conn.sendall(f"CPU: {cpu_usage}%\n".encode('utf-8'))
                     time.sleep(1.5)    # Sleep for 1.5 seconds
 
-            elif current_command == 'memoria' or current_command == 'memory':
+            elif current_command == 'MEMORY' or current_command == 'memory':
                 conn.sendall("Monitoring memory usage. Type 'X' to stop.\n".encode('utf-8'))
 
                 while True:
@@ -120,7 +125,7 @@ class Server:
                 current_command = None   # Reset the command to stop sending data
                 continue
 
-            elif current_command == 'shutdown':
+            elif current_command == '/shutdown':
                 conn.sendall("Server shutting down...\n".encode('utf-8'))
                 with self.lock:
                     self.running = False
@@ -151,7 +156,7 @@ class Server:
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.server_socket.bind((self.host, self.port))
         self.server_socket.listen()
-        print(f"Servidor iniciado em {self.host}:{self.port}")
+        print(f"Server Initialized on {self.host}:{self.port}")
 
         try:
             while self.running:
