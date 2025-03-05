@@ -1,0 +1,3 @@
+Use the bellow command to install project dependencies (with an enviroment configured):
+
+> pip install -r requirements.txt 
