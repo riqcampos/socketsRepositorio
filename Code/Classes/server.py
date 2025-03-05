@@ -5,14 +5,48 @@ import time
 from datetime import datetime
 
 class Server:
-    def __init__(self, host='0.0.0.0', port=5000): 
+    """
+    A class to represent a server that handles multiple clients and processes commands.
+    
+    Attributes:
+    host : str
+        The host address of the server.
+    port : int
+        The port number on which the server listens.
+    clients : list
+        A list to store connected clients.
+    commands : list
+        A list to store received commands.
+    lock : threading.Lock
+        A lock to synchronize access to shared resources.
+    """
+
+    def __init__(self, host='0.0.0.0', port=5000):
+        """
+        Constructs all the necessary attributes for the server object.
+
+        Parameters:
+        host : str
+            The host address of the server (default is '0.0.0.0').
+        port : int
+            The port number on which the server listens (default is 5000).
+        """
         self.host = host
         self.port = port
         self.clients = []
         self.commands = []
-        self.lock = threading.Lock()
+        self.lock = threading.Lock()    # Ensure thread-safe access to shared resources
 
     def handle_client(self, conn, addr):
+        """
+        Handles a connected client by starting threads for receiving commands and sending data.
+
+        Parameters:
+        conn : socket
+            The socket object for the connected client.
+        addr : tuple
+            The address of the connected client.
+        """
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {addr} CONECTADO!!")
         conn.sendall(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: CONECTADO!!\n".encode('utf-8'))
 
@@ -26,6 +60,13 @@ class Server:
         conn.close()
 
     def receive_commands(self, conn):
+        """
+        Receives commands from the connected client and stores them in the commands list.
+
+        Parameters:
+        conn : socket
+            The socket object for the connected client.
+        """
         while True:
             try:
                 data = conn.recv(1024).decode('utf-8').strip()
@@ -36,43 +77,103 @@ class Server:
                 break
 
     def send_data(self, conn):
+        """
+        Sends data to the connected client based on the received commands.
+
+        Parameters:
+        conn : socket
+            The socket object for the connected client.
+        """
         current_command = None
+
+        conn.sendall("WELCOME TO THE RESOURCE VISUALIZER SERVER!\n".encode('utf-8'))
+        conn.sendall("Type 'CPU' or 'memory' to monitor the respective resources.\n".encode('utf-8'))
+        
         while True:
             with self.lock:
                 if self.commands:
                     current_command = self.commands.pop(0)
 
-            if current_command == 'CPU':
+            if current_command == 'CPU' or current_command == 'cpu':
+                conn.sendall("Monitoring CPU usage. Type 'X' to stop.\n".encode('utf-8'))
+
                 while True:
                     with self.lock:
                         if self.commands and self.commands[0] != 'CPU':
                             break
                     cpu_usage = psutil.cpu_percent(interval=1)
                     conn.sendall(f"CPU: {cpu_usage}%\n".encode('utf-8'))
+                    time.sleep(1.5)    # Sleep for 1.5 seconds
 
-            elif current_command == 'memoria':
+            elif current_command == 'memoria' or current_command == 'memory':
+                conn.sendall("Monitoring memory usage. Type 'X' to stop.\n".encode('utf-8'))
+
                 while True:
                     with self.lock:
                         if self.commands and self.commands[0] != 'memoria':
                             break
                     memory_usage = psutil.virtual_memory().percent
-                    conn.sendall(f"Memória: {memory_usage}%\n".encode('utf-8'))
+                    conn.sendall(f"Memory: {memory_usage}%\n".encode('utf-8'))
+                    time.sleep(1.5)   # Sleep for 1.5 seconds
 
-            elif current_command == 'stop':
+            elif current_command == 'X':
                 current_command = None   # Reset the command to stop sending data
                 continue
 
-    def start(self):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
-            server_socket.bind((self.host, self.port))
-            server_socket.listen()
-            print(f"Servidor iniciado em {self.host}:{self.port}")
+            elif current_command == 'shutdown':
+                conn.sendall("Server shutting down...\n".encode('utf-8'))
+                with self.lock:
+                    self.running = False
+                break
+                
+            current_command = None
 
-            while True:
-                conn, addr = server_socket.accept()
-                client_thread = threading.Thread(target=self.handle_client, args=(conn, addr))
-                client_thread.start()
+    def stop(self):
+        """
+        Stops the server and closes all client connections.
+        """
+        self.running = False
+        for client in self.clients[:]:
+            try:
+                client.close()
+            except:
+                pass
+        if hasattr(self, 'server_socket') and self.server_socket:
+            self.server_socket.close()
+        print("Server stopped")
+
+    def start(self):
+        """
+        Starts the server to listen for incoming connections and handle them.
+        """
+        self.running = True     # Flag to indicate if the server is running
+        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.server_socket.bind((self.host, self.port))
+        self.server_socket.listen()
+        print(f"Servidor iniciado em {self.host}:{self.port}")
+
+        try:
+            while self.running:
+                try:
+                    self.server_socket.settimeout(1.0)      # Allow checking self.running every second
+                    conn, addr = self.server_socket.accept()
+                    with self.lock:
+                        self.clients.append(conn)
+                    client_thread = threading.Thread(target=self.handle_client, args=(conn, addr))
+                    client_thread.daemon = True     # Set as daemon so it exits when main thread exits
+                    client_thread.start()
+                except socket.timeout:
+                    continue
+                except Exception as e:
+                    if self.running:
+                        print(f"Error: {e}")
+        finally:
+            self.server_socket.close()
 
 if __name__ == "__main__":
     server = Server()
-    server.start()
+    try:
+        server.start()
+    except KeyboardInterrupt:
+        server.stop()
