@@ -39,10 +39,10 @@ class Client:
         print("Type /exit to quit")
         while self.running:
             try:
-                command = input().strip()
+                command = input().strip().upper()
                 if command and self.running:
                     conn.sendall(command.encode('utf-8'))
-                    if command == "/exit":
+                    if command == "/EXIT":
                         self.running = False
                         # Close the socket to unblock the receiving thread
                         if self.client_socket:

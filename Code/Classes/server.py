@@ -87,7 +87,7 @@ class Server:
         current_command = None
 
         conn.sendall("WELCOME TO THE RESOURCE VISUALIZER SERVER!\n\n".encode('utf-8'))
-        conn.sendall("""\n-------------LIST OF COMMANDS--------------
+        conn.sendall("""\n\n-------------LIST OF COMMANDS--------------
 |    cpu -> view cpu usage                |
 |    memory -> view memory usage          |
 |    /exit -> exit from client application|
@@ -99,7 +99,7 @@ class Server:
                 if self.commands:
                     current_command = self.commands.pop(0)
 
-            if current_command == 'CPU' or current_command == 'cpu':
+            if current_command == 'CPU':
                 conn.sendall("Monitoring CPU usage. Type 'X' to stop.\n".encode('utf-8'))
 
                 while True:
@@ -110,7 +110,7 @@ class Server:
                     conn.sendall(f"CPU: {cpu_usage}%\n".encode('utf-8'))
                     time.sleep(1.5)    # Sleep for 1.5 seconds
 
-            elif current_command == 'MEMORY' or current_command == 'memory':
+            elif current_command == 'MEMORY':
                 conn.sendall("Monitoring memory usage. Type 'X' to stop.\n".encode('utf-8'))
 
                 while True:
@@ -125,7 +125,7 @@ class Server:
                 current_command = None   # Reset the command to stop sending data
                 continue
 
-            elif current_command == '/shutdown':
+            elif current_command == '/SHUTDOWN':
                 conn.sendall("Server shutting down...\n".encode('utf-8'))
                 with self.lock:
                     self.running = False
