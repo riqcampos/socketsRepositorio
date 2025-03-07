@@ -35,7 +35,23 @@ class Server:
         self.port = port
         self.clients = []
         self.commands = []
+        self.clientNumber = len(self.clients)
+        self.Limit = 4
         self.lock = threading.Lock()    # Ensure thread-safe access to shared resources
+
+    def handle_client_limit(self, conn):
+        '''
+        Check if the client limit has been reached.
+
+        parameters:
+        conn : socket
+            The socket object for the connected client.
+        '''
+        if self.clientNumber > self.Limit:
+            print("Client limit reached --> Impossible to connect")
+            conn.sendall("Server > Unable to establish connection --> ERROR: 508. Try again later.\n".encode('utf-8'))
+            return True
+        return False
 
     def handle_client(self, conn, addr):
         """
@@ -47,7 +63,7 @@ class Server:
         addr : tuple
             The address of the connected client.
         """
-        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Client {addr} > Connection Established!\n")
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Client {addr} > Connection Established! >> Number of clients: {self.clientNumber}\n")
         conn.sendall(f" Server > Connection Established!\n".encode('utf-8'))
 
         thread_recv = threading.Thread(target=self.receive_commands, args=(conn,))
@@ -88,12 +104,12 @@ class Server:
 
         conn.sendall("WELCOME TO THE RESOURCE VISUALIZER SERVER!\n\n".encode('utf-8'))
         conn.sendall("""\n\n-------------LIST OF COMMANDS--------------
-|    cpu -> view cpu usage                |
-|    memory -> view memory usage          |
-|    /exit -> exit from client application|
-|    /shutdown -> turn off server         |
--------------------------------------------""".encode('utf-8'))
-        
+                            |    cpu -> view cpu usage                |
+                            |    memory -> view memory usage          |
+                            |    /exit -> exit from client application|
+                            |    /shutdown -> turn off server         |
+                            -------------------------------------------""".encode('utf-8'))
+        conn.sendall("\n\n".encode('utf-8'))
         while True:
             with self.lock:
                 if self.commands:
