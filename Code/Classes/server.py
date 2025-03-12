@@ -35,8 +35,6 @@ class Server:
         self.port = port
         self.clients = []
         self.commands = []
-        self.clientNumber = len(self.clients)
-        self.Limit = 4
         self.lock = threading.Lock()    # Ensure thread-safe access to shared resources
 
     def handle_client_limit(self, conn):
@@ -75,6 +73,18 @@ class Server:
         thread_send.join()
         conn.close()
 
+    def client_stop(self, conn):
+        """
+        Stops the client connection and removes it from the list of connected clients.
+
+        Parameters:
+        conn : socket
+            The socket object for the connected client.
+        """
+        with self.lock:
+            self.clients.remove(conn)
+        conn.close()
+
     def receive_commands(self, conn):
         """
         Receives commands from the connected client and stores them in the commands list.
@@ -104,11 +114,11 @@ class Server:
 
         conn.sendall("WELCOME TO THE RESOURCE VISUALIZER SERVER!\n\n".encode('utf-8'))
         conn.sendall("""\n\n-------------LIST OF COMMANDS--------------
-                            |    cpu -> view cpu usage                |
-                            |    memory -> view memory usage          |
-                            |    /exit -> exit from client application|
-                            |    /shutdown -> turn off server         |
-                            -------------------------------------------""".encode('utf-8'))
+|    cpu -> view cpu usage                |
+|    memory -> view memory usage          |
+|    /exit -> exit from client application|
+|    /shutdown -> turn off server         |
+-------------------------------------------""".encode('utf-8'))
         conn.sendall("\n\n".encode('utf-8'))
         while True:
             with self.lock:
@@ -175,7 +185,8 @@ class Server:
         print(f"Server Initialized on {self.host}:{self.port}")
 
         try:
-            while self.running:
+            self.client_limit = input("Enter the client limit: ")
+            while self.running: 
                 try:
                     self.server_socket.settimeout(1.0)      # Allow checking self.running every second
                     conn, addr = self.server_socket.accept()
@@ -184,6 +195,8 @@ class Server:
                     client_thread = threading.Thread(target=self.handle_client, args=(conn, addr))
                     client_thread.daemon = True     # Set as daemon so it exits when main thread exits
                     client_thread.start()
+                    if self.handle_client_limit(conn):
+                        self.client_stop()
                 except socket.timeout:
                     continue
                 except Exception as e:
