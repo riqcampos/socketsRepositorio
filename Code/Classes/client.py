@@ -36,7 +36,6 @@ class Client:
                 break
 
     def send_commands(self, conn):
-        print("Type /exit to quit")
         while self.running:
             try:
                 command = input().strip().upper()

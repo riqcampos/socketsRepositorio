@@ -36,16 +36,18 @@ class Server:
         self.clients = []
         self.commands = []
         self.lock = threading.Lock()    # Ensure thread-safe access to shared resources
+        self.clientNumber = 0
+        self.Limit = 0
 
     def handle_client_limit(self, conn):
-        '''
+        """
         Check if the client limit has been reached.
 
-        parameters:
+        Parameters:
         conn : socket
             The socket object for the connected client.
-        '''
-        if self.clientNumber > self.Limit:
+        """
+        if self.clientNumber >= self.Limit:
             print("Client limit reached --> Impossible to connect")
             conn.sendall("Server > Unable to establish connection --> ERROR: 508. Try again later.\n".encode('utf-8'))
             return True
@@ -61,6 +63,9 @@ class Server:
         addr : tuple
             The address of the connected client.
         """
+        with self.lock:
+            self.clientNumber += 1
+
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Client {addr} > Connection Established! >> Number of clients: {self.clientNumber}\n")
         conn.sendall(f" Server > Connection Established!\n".encode('utf-8'))
 
@@ -71,7 +76,7 @@ class Server:
 
         thread_recv.join()
         thread_send.join()
-        conn.close()
+        self.client_stop(conn)
 
     def client_stop(self, conn):
         """
@@ -83,6 +88,7 @@ class Server:
         """
         with self.lock:
             self.clients.remove(conn)
+            self.clientNumber -= 1
         conn.close()
 
     def receive_commands(self, conn):
@@ -113,7 +119,7 @@ class Server:
         current_command = None
 
         conn.sendall("WELCOME TO THE RESOURCE VISUALIZER SERVER!\n\n".encode('utf-8'))
-        conn.sendall("""\n\n-------------LIST OF COMMANDS--------------
+        conn.sendall("""\n\n\n-------------LIST OF COMMANDS--------------
 |    cpu -> view cpu usage                |
 |    memory -> view memory usage          |
 |    /exit -> exit from client application|
@@ -130,7 +136,8 @@ class Server:
 
                 while True:
                     with self.lock:
-                        if self.commands and self.commands[0] != 'CPU':
+                        if self.commands and self.commands[0] == 'X':
+                            self.commands.pop(0)  # Remove the 'X' command
                             break
                     cpu_usage = psutil.cpu_percent(interval=1)
                     conn.sendall(f"CPU: {cpu_usage}%\n".encode('utf-8'))
@@ -141,7 +148,8 @@ class Server:
 
                 while True:
                     with self.lock:
-                        if self.commands and self.commands[0] != 'memoria':
+                        if self.commands and self.commands[0] == 'X':
+                            self.commands.pop(0)  # Remove the 'X' command
                             break
                     memory_usage = psutil.virtual_memory().percent
                     conn.sendall(f"Memory: {memory_usage}%\n".encode('utf-8'))
@@ -185,18 +193,19 @@ class Server:
         print(f"Server Initialized on {self.host}:{self.port}")
 
         try:
-            self.client_limit = input("Enter the client limit: ")
+            self.Limit = int(input("Enter the client limit: "))
             while self.running: 
                 try:
                     self.server_socket.settimeout(1.0)      # Allow checking self.running every second
                     conn, addr = self.server_socket.accept()
+                    if self.handle_client_limit(conn):
+                        conn.close()
+                        continue
                     with self.lock:
                         self.clients.append(conn)
                     client_thread = threading.Thread(target=self.handle_client, args=(conn, addr))
                     client_thread.daemon = True     # Set as daemon so it exits when main thread exits
                     client_thread.start()
-                    if self.handle_client_limit(conn):
-                        self.client_stop()
                 except socket.timeout:
                     continue
                 except Exception as e:
