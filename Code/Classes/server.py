@@ -6,34 +6,7 @@ from datetime import datetime
 
 class Server:
 
-    """
-    Represents a server that handles multiple clients and command processes.
-    
-    Attributes:
-    host : str
-        The host address of the server.
-    port : int
-        The port number on which the server listens.
-    clients : list
-        A list to store connected clients.
-    commands : list
-        A list to store received commands.
-    lock : threading.Lock
-        A lock to synchronize access to shared resources.
-    """
-
     def __init__(self, host='0.0.0.0', port=5000):
-
-        """
-        Constructs all the necessary attributes for the server object.
-
-        Parameters:
-        host : str
-            The host address of the server (default is '0.0.0.0').
-        port : int
-            The port number on which the server listens (default is 5000).
-        """
-
         self.host = host
         self.port = port
         self.clients = []
@@ -41,38 +14,13 @@ class Server:
         self.connection_limits = 0
         self.lock = threading.Lock()    # Ensure thread-safe access to shared resources
         self.closing_connections = set()  # Track connections being closed
-    
 
     def server_command_shell(self, prompt):
-
-        """
-        Process inputs in the command prompt while the program is running.
-        This is an abstraction to return the value from input, which is then assigned to variables in init.
-        
-        Parameters:
-        prompt : str
-            The prompt to display when requesting input.
-            
-        Returns:
-        str
-            The user input that can be assigned to a variable.
-        """
-
         print(prompt, end=' ')
         user_input = input()
         return user_input
 
-
-    def client_stop(self, conn):
-        
-        """
-        Stops the client connection and removes it from the list of connected clients.
-
-        Parameters:
-        conn : socket
-            The socket object for the connected client.
-        """
-
+    def client_stop(self, conn, addr, notify=True):
         with self.lock:
             # Mark this connection as being closed
             self.closing_connections.add(conn)
@@ -80,7 +28,7 @@ class Server:
                 self.clients.remove(conn)
         
         # Give receive_commands thread a moment to see the flag and exit
-        time.sleep(0.1)
+        time.sleep(0.2)
         
         # Now it's safe to close the connection
         conn.close()
@@ -89,41 +37,24 @@ class Server:
         with self.lock:
             if conn in self.closing_connections:
                 self.closing_connections.remove(conn)
-
+        
+        if notify:
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Client {addr} > Disconnected >> Number of clients: {len(self.clients)}")
 
     def handle_client_limit(self):
-
-        """
-        Check if the client limit has been reached.
-        """
-        
-        if len(self.clients) > self.connection_limits:     
-            return True
-        else:
-            return False
-    
+        return len(self.clients) > self.connection_limits
 
     def handle_client(self, conn, addr):
-
-        """
-        Handles a connected client by starting threads for receiving commands and sending data.
-
-        Parameters:
-        conn : socket
-            The socket object for the connected client.
-        addr : tuple
-            The address of the connected client.
-        """
-
-        if self.handle_client_limit() == True:
-                        print("Client Connection Refused: Connection limit reached.")
-                        conn.sendall("Server > Connection Refused (ERROR: 508). Server limits reached, try again later.\n".encode('utf-8'))
-                        self.client_stop(conn)
-                        # print(self.clients)
+        if self.handle_client_limit():
+            print("Client Connection Refused: Connection limit reached.")
+            conn.sendall("Server > Connection Refused (ERROR: 508). Server limits reached, try again later.\n".encode('utf-8'))
+            self.client_stop(conn, addr, notify=False)
         else:
+            with self.lock:
+                self.clients.append(conn)
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Client {addr} > Connection Established!")
             print(f">> Number of clients: {len(self.clients)}\n")
-            conn.sendall(f" Server > Connection Established!\n".encode('utf-8'))
+            conn.sendall("Server > Connection Established!\n".encode('utf-8'))
 
             thread_recv = threading.Thread(target=self.receive_commands, args=(conn,))
             thread_send = threading.Thread(target=self.send_data, args=(conn, addr))
@@ -132,19 +63,9 @@ class Server:
 
             thread_recv.join()
             thread_send.join()
-            conn.close()
-        
+            self.client_stop(conn, addr, notify=False)
 
     def receive_commands(self, conn):
-        
-        """
-        Receives commands from the connected client and stores them in the commands list.
-
-        Parameters:
-        conn : socket
-            The socket object for the connected client.
-        """
-
         while True:
             try:
                 # Check if this connection is being closed
@@ -157,31 +78,16 @@ class Server:
                 if data:
                     with self.lock:
                         self.commands.append(data)
-
-                        ##   Test module for command list status
-                        # print(f"command list status: {self.commands}")
-                        # print(f"Received command: {self.commands[-1]}")
-
             except ConnectionResetError:
                 break
             except OSError:  # Add explicit handling for Bad file descriptor errors
                 break
 
-
     def send_data(self, conn, addr):
-        
-        """
-        Sends data to the connected client based on the received commands.
-
-        Parameters:
-        conn : socket
-            The socket object for the connected client.
-        """
-
         current_command = None
 
         conn.sendall("WELCOME TO THE RESOURCE VISUALIZER SERVER!\n\n".encode('utf-8'))
-        conn.sendall("""\n\n-------------LIST OF COMMANDS--------------
+        conn.sendall("""\n\n.\n-------------LIST OF COMMANDS--------------
 |    cpu -> view cpu usage                |
 |    memory -> view memory usage          |
 |    /exit -> exit from client application|
@@ -209,7 +115,7 @@ class Server:
 
                 while True:
                     with self.lock:
-                        if self.commands and self.commands[0] != 'memoria':
+                        if self.commands and self.commands[0] != 'MEMORY':
                             break
                     memory_usage = psutil.virtual_memory().percent
                     conn.sendall(f"Memory: {memory_usage}%\n".encode('utf-8'))
@@ -221,26 +127,22 @@ class Server:
 
             elif current_command == '/SHUTDOWN':
                 conn.sendall("Server > Shutting down...\n".encode('utf-8'))
+                print("Server > Shutting down > Client resorce")
                 with self.lock:
                     self.running = False
                 break
 
             elif current_command == '/EXIT':
-                conn.sendall("Server > Connection Closed!\n".encode('utf-8'))
-                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Client {addr} > Disconnected >> Number of clients: {len(self.clients)}")                
-                self.client_stop(conn)
-                print(f">> Number of clients: {len(self.clients)}\n")
+                try:
+                    conn.sendall("Server > Connection Closed!\n".encode('utf-8'))
+                except ConnectionResetError:
+                    pass
+                self.client_stop(conn, addr)
                 break
                 
             current_command = None
 
-
     def stop(self):
-
-        """
-        Stops the server and closes all client connections.
-        """
-
         self.running = False
         for client in self.clients[:]:
             try:
@@ -251,13 +153,7 @@ class Server:
             self.server_socket.close()
         print("Server stopped")
 
-
     def start(self):
-
-        """
-        Starts the server to listen for incoming connections and handle them.
-        """
-
         self.running = True     # Flag to indicate if the server is running
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -272,8 +168,6 @@ class Server:
                 try:
                     self.server_socket.settimeout(1.0)      # Allow checking self.running every second
                     conn, addr = self.server_socket.accept()
-                    with self.lock:
-                        self.clients.append(conn)
                     client_thread = threading.Thread(target=self.handle_client, args=(conn, addr))
                     client_thread.daemon = True     # Set as daemon so it exits when main thread exits
                     client_thread.start()

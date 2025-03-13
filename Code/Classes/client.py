@@ -14,16 +14,10 @@ class Client:
         while self.running:
             try:
                 data = conn.recv(1024).decode('utf-8').strip()
-
-                # if not data:
-                #     print("Connection closed by server.")
-                #     self.running = False    
-                #     break
                 
-                # Could be better defined to display messages more gracefully...
                 if data:
                     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {data}")
-                    if data == "Server > Connection Refused (ERROR: 508). Server limits reached, try again later." or data == "Server > Shutting down..." or data == "Server > Connection closed.":
+                    if data == "Server > Connection Refused (ERROR: 508). Server limits reached, try again later." or data == "Server > Shutting down..." or data == "Server > Connection Closed!":
                         self.running = False
                         break
 
@@ -44,7 +38,6 @@ class Client:
                 break
 
     def send_commands(self, conn):
-        # print("Type /exit to quit")
         while self.running:
             try:
                 command = input().strip().upper()
