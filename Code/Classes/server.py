@@ -42,7 +42,7 @@ class Server:
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Client {addr} > Disconnected >> Number of clients: {len(self.clients)}")
 
     def handle_client_limit(self):
-        return len(self.clients) > self.connection_limits
+        return len(self.clients)+1 > self.connection_limits
 
     def handle_client(self, conn, addr):
         if self.handle_client_limit():
