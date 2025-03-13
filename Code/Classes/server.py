@@ -99,29 +99,30 @@ class Server:
                 if self.commands:
                     current_command = self.commands.pop(0)
 
-            if current_command == 'CPU':
-                conn.sendall("Monitoring CPU usage. Type 'X' to stop.\n".encode('utf-8'))
+            def send_data_abs(command, psutil_data: psutil, conn): 
+                # Abstract function to send machine resources from psutil
 
+                conn.sendall(f"Monitoring {command} usage. Type 'X' to stop.\n".encode('utf-8'))
                 while True:
                     with self.lock:
                         if self.commands and self.commands[0] != 'CPU':
                             break
-                    cpu_usage = psutil.cpu_percent(interval=1)
-                    conn.sendall(f"CPU: {cpu_usage}%\n".encode('utf-8'))
+                    conn.sendall(f"{command}: {psutil_data}%\n".encode('utf-8'))
                     time.sleep(1.5)    # Sleep for 1.5 seconds
 
-            elif current_command == 'MEMORY':
-                conn.sendall("Monitoring memory usage. Type 'X' to stop.\n".encode('utf-8'))
 
-                while True:
-                    with self.lock:
-                        if self.commands and self.commands[0] != 'MEMORY':
-                            break
-                    memory_usage = psutil.virtual_memory().percent
-                    conn.sendall(f"Memory: {memory_usage}%\n".encode('utf-8'))
-                    time.sleep(1.5)   # Sleep for 1.5 seconds
+            if current_command == 'CPU':
+
+                send_data_abs(current_command, psutil.cpu_percent(interval=1), conn)
+
+
+            elif current_command == 'MEMORY':
+
+                send_data_abs(current_command, psutil.virtual_memory().percent, conn)
+
 
             elif current_command == 'X':
+
                 current_command = None   # Reset the command to stop sending data
                 continue
 
@@ -134,6 +135,7 @@ class Server:
 
             elif current_command == '/EXIT':
                 try:
+                    print(self.commands) ## DEBUGGING
                     conn.sendall("Server > Connection Closed!\n".encode('utf-8'))
                 except ConnectionResetError:
                     pass
